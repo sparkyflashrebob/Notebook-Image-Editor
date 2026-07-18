@@ -44,6 +44,7 @@ export default function App() {
   const [colorMode, setColorMode] = useState('auto'); // 'auto' or 'custom'
   const [customColor, setCustomColor] = useState('#ffffff');
   const [showSettings, setShowSettings] = useState(false); // Collapsible Gemini settings wheel
+  const [isDropzoneHovered, setIsDropzoneHovered] = useState(false);
 
   const handleZoom = (direction) => {
     setScale(prev => {
@@ -61,6 +62,8 @@ export default function App() {
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setShowSettings(false);
 
     const fileType = file.type;
     const isImage = fileType.startsWith('image/');
@@ -467,341 +470,360 @@ export default function App() {
     <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100">
 
       {/* Unified Toolbar Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-3 bg-zinc-950/80 border-b border-zinc-900 sticky top-0 z-50 backdrop-blur-md">
-        {/* Left: Brand + File Operations */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 mr-2">
-            <Layers className="text-blue-500 w-5 h-5 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-            <span className="text-xs font-bold logo-title m-0 tracking-wider">Notebook Editor</span>
+      <header className="bg-zinc-950/80 border-b border-zinc-900 sticky top-0 z-50 backdrop-blur-md">
+        <div className="max-w-[1600px] w-full mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+          {/* Left: Brand + File Operations */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 mr-2">
+              <Layers className="text-blue-500 w-5 h-5 filter drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
+              <span className="text-xs font-bold logo-title m-0 tracking-wider">Notebook Editor</span>
+            </div>
+
+            {/* File Inputs & Commands */}
+            <div className="flex items-center gap-2">
+              {/* File Open */}
+              <label className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-905 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-lg text-xs font-semibold cursor-pointer text-zinc-200 transition">
+                <FolderOpen size={14} className="text-blue-500" />
+                <span>Open</span>
+                <input
+                  type="file"
+                  accept="application/pdf,image/png,image/jpeg,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+              </label>
+
+              {/* File Close & Save (Only when file loaded) */}
+              {pdfFile && (
+                <>
+                  {/* Filename Input */}
+                  <input
+                    type="text"
+                    value={exportFileName}
+                    onChange={(e) => setExportFileName(e.target.value)}
+                    className="bg-zinc-900 border border-zinc-850 rounded-lg px-2.5 py-1 text-xs text-zinc-200 w-44 focus:outline-none focus:border-blue-500 transition"
+                    placeholder="Filename..."
+                    title="Output Filename"
+                  />
+
+                  {/* Page nav for PDFs */}
+                  {pdfDoc && numPages > 1 && (
+                    <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                      <button
+                        onClick={handlePrevPage}
+                        disabled={currentPage <= 1}
+                        className="p-1 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white disabled:opacity-30 transition"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span className="text-[10px] font-bold text-zinc-400 px-1 text-center min-w-10">
+                        {currentPage}/{numPages}
+                      </span>
+                      <button
+                        onClick={handleNextPage}
+                        disabled={currentPage >= numPages}
+                        className="p-1 hover:bg-zinc-800 rounded-md text-zinc-405 hover:text-white disabled:opacity-30 transition"
+                        title="Next Page"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Close button */}
+                  <button
+                    onClick={() => {
+                      setPdfFile(null);
+                      setPdfDoc(null);
+                      setOriginalBuffer(null);
+                      setRenderedPages({});
+                      setPageBoxes({});
+                      setPageBrushStrokes({});
+                    }}
+                    className="flex items-center gap-1 px-2 py-1.5 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 hover:border-zinc-700/80 hover:text-red-400 text-xs font-semibold rounded-lg text-zinc-400 transition"
+                    title="Close Document"
+                  >
+                    <X size={14} />
+                    <span>Close</span>
+                  </button>
+
+                  {/* Save/Export button */}
+                  <button
+                    onClick={handleExportPdf}
+                    disabled={isRebuilding}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition"
+                    title="Save / Export File"
+                  >
+                    {isRebuilding ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <Download size={14} />
+                    )}
+                    <span>Save</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* File Inputs & Commands */}
-          <div className="flex items-center gap-2">
-            {/* File Open */}
-            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-905 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-lg text-xs font-semibold cursor-pointer text-zinc-200 transition">
-              <FolderOpen size={14} className="text-blue-500" />
-              <span>Open</span>
-              <input
-                type="file"
-                accept="application/pdf,image/png,image/jpeg,image/webp"
-                style={{ display: 'none' }}
-                onChange={handleFileChange}
-              />
-            </label>
+          {/* Middle-Right: Tools, Zoom, Gemini and Reset (Shown only when file loaded) */}
+          {pdfFile ? (
+            <div className="flex items-center gap-4">
+              {/* Tools choices: Box vs Brush */}
+              <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                <button
+                  onClick={() => setActiveTool('box')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition ${activeTool === 'box'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  title="Box Eraser Tool"
+                >
+                  <Square size={13} strokeWidth={2.5} />
+                  <span>Box Eraser</span>
+                </button>
+                <button
+                  onClick={() => setActiveTool('brush')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition ${activeTool === 'brush'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  title="Healing Brush Tool"
+                >
+                  <Brush size={13} />
+                  <span>Healing Brush</span>
+                </button>
+              </div>
 
-            {/* File Close & Save (Only when file loaded) */}
-            {pdfFile && (
-              <>
-                {/* Filename Input */}
-                <input
-                  type="text"
-                  value={exportFileName}
-                  onChange={(e) => setExportFileName(e.target.value)}
-                  className="bg-zinc-900 border border-zinc-850 rounded-lg px-2.5 py-1 text-xs text-zinc-200 w-44 focus:outline-none focus:border-blue-500 transition"
-                  placeholder="Filename..."
-                  title="Output Filename"
-                />
+              {/* Dynamic Brush Context control options */}
+              {activeTool === 'brush' && (
+                <div className="flex items-center gap-3 bg-zinc-900/60 border border-zinc-850 px-2.5 py-1 rounded-lg">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-zinc-550 font-bold uppercase">Size:</span>
+                    <input
+                      type="range"
+                      min="5"
+                      max="80"
+                      value={brushSize}
+                      onChange={(e) => setBrushSize(parseInt(e.target.value))}
+                      className="w-16 accent-blue-500 h-1 rounded bg-zinc-850"
+                    />
+                    <span className="text-[10px] text-zinc-300 font-semibold w-5">{brushSize}px</span>
+                  </div>
 
-                {/* Page nav for PDFs */}
-                {pdfDoc && numPages > 1 && (
-                  <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                  <div className="h-3 w-px bg-zinc-850" />
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] text-zinc-555 font-bold uppercase">Color:</span>
                     <button
-                      onClick={handlePrevPage}
-                      disabled={currentPage <= 1}
-                      className="p-1 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white disabled:opacity-30 transition"
-                      title="Previous Page"
+                      onClick={() => setColorMode('auto')}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition ${colorMode === 'auto'
+                        ? 'bg-blue-950/50 text-blue-400 border-blue-900/50'
+                        : 'bg-zinc-800 text-zinc-400 border-zinc-800 hover:text-white'
+                        }`}
+                      title="Smart background color sampling"
                     >
-                      <ChevronLeft size={14} />
+                      Smart
                     </button>
-                    <span className="text-[10px] font-bold text-zinc-400 px-1 text-center min-w-10">
-                      {currentPage}/{numPages}
-                    </span>
                     <button
-                      onClick={handleNextPage}
-                      disabled={currentPage >= numPages}
-                      className="p-1 hover:bg-zinc-800 rounded-md text-zinc-405 hover:text-white disabled:opacity-30 transition"
-                      title="Next Page"
+                      onClick={() => setColorMode('custom')}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition ${colorMode === 'custom'
+                        ? 'bg-zinc-850 text-white border-zinc-700'
+                        : 'bg-zinc-800 text-zinc-400 border-zinc-800 hover:text-white'
+                        }`}
                     >
-                      <ChevronRight size={14} />
+                      Custom
                     </button>
+                    {colorMode === 'custom' && (
+                      <input
+                        type="color"
+                        value={customColor}
+                        onChange={(e) => setCustomColor(e.target.value)}
+                        className="w-4 h-4 rounded border-0 bg-transparent cursor-pointer p-0 shrink-0"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Zoom scale controls */}
+              <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                <button
+                  onClick={() => handleZoom('out')}
+                  className="p-1 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white"
+                  title="Zoom Out (Ctrl + Wheel)"
+                >
+                  <ZoomOut size={14} />
+                </button>
+                <span className="text-[10px] font-bold text-zinc-400 px-1.5 min-w-10 text-center">
+                  {Math.round(scale * 100)}%
+                </span>
+                <button
+                  onClick={() => handleZoom('in')}
+                  className="p-1 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white"
+                  title="Zoom In (Ctrl + Wheel)"
+                >
+                  <ZoomIn size={14} />
+                </button>
+              </div>
+
+              {/* AI detection */}
+              <button
+                onClick={handleAutoDetect}
+                disabled={isDetecting}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${isDetecting
+                  ? 'bg-blue-950/20 text-blue-400 border-blue-900/30 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500/80 shadow-md'
+                  }`}
+              >
+                <Sparkles size={13} className={isDetecting ? 'animate-spin' : ''} />
+                <span>{isDetecting ? 'Detecting...' : 'Auto-Detect'}</span>
+              </button>
+
+              {/* Reset current page */}
+              <button
+                onClick={() => {
+                  const pageIdx = currentPage - 1;
+                  setPageBoxes((prev) => ({ ...prev, [pageIdx]: [] }));
+                  setPageBrushStrokes((prev) => ({ ...prev, [pageIdx]: [] }));
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-red-950/30 hover:text-red-400 text-xs font-semibold text-zinc-450 border border-transparent hover:border-red-900/30 rounded-lg transition"
+                title="Clear page edits"
+              >
+                <Trash2 size={13} />
+                <span>Reset Page</span>
+              </button>
+
+              {/* Gear settings button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`p-1.5 rounded-lg border transition ${showSettings
+                    ? 'bg-zinc-800 border-zinc-700 text-white'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
+                    }`}
+                  title="Gemini API Configuration"
+                >
+                  <Settings size={14} className={showSettings ? 'rotate-45 transition-transform' : ''} />
+                </button>
+
+                {showSettings && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-0 top-9 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-4 z-50 flex flex-col gap-3"
+                  >
+                    <h3 className="text-xs font-bold text-zinc-350 m-0 uppercase tracking-wider">Gemini API Settings</h3>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase">API Key</label>
+                      <div className="relative">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-lg py-1 px-2.5 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
+                          placeholder="APIKey..."
+                        />
+                        <button
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-2 top-1 text-zinc-500 hover:text-zinc-300 transition"
+                        >
+                          {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase">Model</label>
+                      <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-1 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
+                      >
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                      </select>
+                    </div>
                   </div>
                 )}
-
-                {/* Close button */}
-                <button
-                  onClick={() => {
-                    setPdfFile(null);
-                    setPdfDoc(null);
-                    setOriginalBuffer(null);
-                    setRenderedPages({});
-                    setPageBoxes({});
-                    setPageBrushStrokes({});
-                  }}
-                  className="flex items-center gap-1 px-2 py-1.5 bg-zinc-950 border border-zinc-850 hover:bg-zinc-900 hover:border-zinc-700/80 hover:text-red-400 text-xs font-semibold rounded-lg text-zinc-400 transition"
-                  title="Close Document"
-                >
-                  <X size={14} />
-                  <span>Close</span>
-                </button>
-
-                {/* Save/Export button */}
-                <button
-                  onClick={handleExportPdf}
-                  disabled={isRebuilding}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition"
-                  title="Save / Export File"
-                >
-                  {isRebuilding ? (
-                    <RefreshCw size={14} className="animate-spin" />
-                  ) : (
-                    <Download size={14} />
-                  )}
-                  <span>Save</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Middle-Right: Tools, Zoom, Gemini and Reset (Shown only when file loaded) */}
-        {pdfFile ? (
-          <div className="flex items-center gap-4">
-            {/* Tools choices: Box vs Brush */}
-            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
-              <button
-                onClick={() => setActiveTool('box')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition ${activeTool === 'box'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
-                  }`}
-                title="Box Eraser Tool"
-              >
-                <Square size={13} strokeWidth={2.5} />
-                <span>Box Eraser</span>
-              </button>
-              <button
-                onClick={() => setActiveTool('brush')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition ${activeTool === 'brush'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-white'
-                  }`}
-                title="Healing Brush Tool"
-              >
-                <Brush size={13} />
-                <span>Healing Brush</span>
-              </button>
-            </div>
-
-            {/* Dynamic Brush Context control options */}
-            {activeTool === 'brush' && (
-              <div className="flex items-center gap-3 bg-zinc-900/60 border border-zinc-850 px-2.5 py-1 rounded-lg">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] text-zinc-550 font-bold uppercase">Size:</span>
-                  <input
-                    type="range"
-                    min="5"
-                    max="80"
-                    value={brushSize}
-                    onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                    className="w-16 accent-blue-500 h-1 rounded bg-zinc-850"
-                  />
-                  <span className="text-[10px] text-zinc-300 font-semibold w-5">{brushSize}px</span>
-                </div>
-
-                <div className="h-3 w-px bg-zinc-850" />
-
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] text-zinc-555 font-bold uppercase">Color:</span>
-                  <button
-                    onClick={() => setColorMode('auto')}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition ${colorMode === 'auto'
-                      ? 'bg-blue-950/50 text-blue-400 border-blue-900/50'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-800 hover:text-white'
-                      }`}
-                    title="Smart background color sampling"
-                  >
-                    Smart
-                  </button>
-                  <button
-                    onClick={() => setColorMode('custom')}
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold border transition ${colorMode === 'custom'
-                      ? 'bg-zinc-850 text-white border-zinc-700'
-                      : 'bg-zinc-800 text-zinc-400 border-zinc-800 hover:text-white'
-                      }`}
-                  >
-                    Custom
-                  </button>
-                  {colorMode === 'custom' && (
-                    <input
-                      type="color"
-                      value={customColor}
-                      onChange={(e) => setCustomColor(e.target.value)}
-                      className="w-4 h-4 rounded border-0 bg-transparent cursor-pointer p-0 shrink-0"
-                    />
-                  )}
-                </div>
               </div>
-            )}
 
-            {/* Zoom scale controls */}
-            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
-              <button
-                onClick={() => handleZoom('out')}
-                className="p-1 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white"
-                title="Zoom Out (Ctrl + Wheel)"
-              >
-                <ZoomOut size={14} />
-              </button>
-              <span className="text-[10px] font-bold text-zinc-400 px-1.5 min-w-10 text-center">
-                {Math.round(scale * 100)}%
-              </span>
-              <button
-                onClick={() => handleZoom('in')}
-                className="p-1 hover:bg-zinc-800 rounded-md text-zinc-400 hover:text-white"
-                title="Zoom In (Ctrl + Wheel)"
-              >
-                <ZoomIn size={14} />
-              </button>
             </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`p-1.5 rounded-lg border transition flex items-center gap-1.5 text-xs font-semibold ${showSettings
+                    ? 'bg-zinc-800 border-zinc-700 text-white'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  title="Gemini API Configuration"
+                >
+                  <Settings size={14} />
+                  <span>Config API</span>
+                </button>
 
-            {/* AI detection */}
-            <button
-              onClick={handleAutoDetect}
-              disabled={isDetecting}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${isDetecting
-                ? 'bg-blue-950/20 text-blue-400 border-blue-900/30 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-500 text-white border-blue-500/80 shadow-md'
-                }`}
-            >
-              <Sparkles size={13} className={isDetecting ? 'animate-spin' : ''} />
-              <span>{isDetecting ? 'Detecting...' : 'Auto-Detect'}</span>
-            </button>
+                {showSettings && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-0 top-9 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-4 z-50 flex flex-col gap-3"
+                  >
+                    <h3 className="text-xs font-bold text-zinc-350 m-0 uppercase tracking-wider">Gemini API Settings</h3>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase">API Key</label>
+                      <div className="relative">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-lg py-1 px-2.5 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
+                          placeholder="APIKey..."
+                        />
+                        <button
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-2 top-1 text-zinc-500 hover:text-zinc-300 transition"
+                        >
+                          {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                        </button>
+                      </div>
+                    </div>
 
-            {/* Reset current page */}
-            <button
-              onClick={() => {
-                const pageIdx = currentPage - 1;
-                setPageBoxes((prev) => ({ ...prev, [pageIdx]: [] }));
-                setPageBrushStrokes((prev) => ({ ...prev, [pageIdx]: [] }));
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 hover:bg-red-950/30 hover:text-red-400 text-xs font-semibold text-zinc-450 border border-transparent hover:border-red-900/30 rounded-lg transition"
-              title="Clear page edits"
-            >
-              <Trash2 size={13} />
-              <span>Reset Page</span>
-            </button>
-
-            {/* Gear settings button */}
-            <div className="relative">
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className={`p-1.5 rounded-lg border transition ${showSettings
-                  ? 'bg-zinc-800 border-zinc-700 text-white'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700'
-                  }`}
-                title="Gemini API Configuration"
-              >
-                <Settings size={14} className={showSettings ? 'rotate-45 transition-transform' : ''} />
-              </button>
-
-              {showSettings && (
-                <div className="absolute right-0 top-9 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-4 z-50 flex flex-col gap-3">
-                  <h3 className="text-xs font-bold text-zinc-350 m-0 uppercase tracking-wider">Gemini API Settings</h3>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase">API Key</label>
-                    <div className="relative">
-                      <input
-                        type={showApiKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 rounded-lg py-1 px-2.5 text-xs focus:outline-none focus:border-blue-500 text-zinc-205 transition"
-                        placeholder="APIKey..."
-                      />
-                      <button
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-2 top-1 text-zinc-500 hover:text-zinc-300 transition"
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-bold text-zinc-500 uppercase">Model</label>
+                      <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-1 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
                       >
-                        {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
-                      </button>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                      </select>
                     </div>
                   </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase">Model</label>
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full bg-zinc-955 border border-zinc-800 rounded-lg p-1 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
-                    >
-                      <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                    </select>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className={`p-1.5 rounded-lg border transition flex items-center gap-1.5 text-xs font-semibold ${showSettings
-                  ? 'bg-zinc-800 border-zinc-700 text-white'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
-                  }`}
-                title="Gemini API Configuration"
-              >
-                <Settings size={14} />
-                <span>Config API</span>
-              </button>
-
-              {showSettings && (
-                <div className="absolute right-0 top-9 w-64 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-4 z-50 flex flex-col gap-3">
-                  <h3 className="text-xs font-bold text-zinc-350 m-0 uppercase tracking-wider">Gemini API Settings</h3>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase">API Key</label>
-                    <div className="relative">
-                      <input
-                        type={showApiKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-850 hover:border-zinc-700 rounded-lg py-1 px-2.5 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
-                        placeholder="APIKey..."
-                      />
-                      <button
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-2 top-1 text-zinc-500 hover:text-zinc-300 transition"
-                      >
-                        {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[9px] font-bold text-zinc-500 uppercase">Model</label>
-                    <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-1 text-xs focus:outline-none focus:border-blue-500 text-zinc-200 transition"
-                    >
-                      <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                      <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       {/* Main Workspace Column */}
       <main className="flex-1 flex flex-col p-6 max-w-[1600px] w-full mx-auto justify-center">
 
         {!pdfFile ? (
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-700 hover:border-blue-500/50 rounded-2xl p-10 bg-zinc-900/10 hover:bg-zinc-900/30 cursor-pointer transition-all duration-300 w-full max-w-xl min-h-[360px] self-center mt-12 relative shadow-xl group">
+          <div
+            onMouseEnter={() => setIsDropzoneHovered(true)}
+            onMouseLeave={() => setIsDropzoneHovered(false)}
+            className="flex flex-col items-center justify-center rounded-2xl p-10 cursor-pointer transition-all duration-350 w-full max-w-xl min-h-[360px] self-center mt-12 relative shadow-2xl group"
+            style={{
+              position: 'relative',
+              backgroundColor: isDropzoneHovered ? '#2d2d34' : '#1e1e24',
+              borderColor: isDropzoneHovered ? '#3b82f6' : '#71717a',
+              borderStyle: 'dashed',
+              borderWidth: '2px',
+            }}
+          >
             <input
               type="file"
               accept="application/pdf,image/png,image/jpeg,image/webp"
@@ -825,12 +847,6 @@ export default function App() {
             <p className="text-xs text-zinc-400 mt-2 max-w-72 text-center leading-relaxed">
               Drag and drop your file here, or click to browse. Supports PDF, PNG, JPG, and WEBP.
             </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-2">
-              <span className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 font-bold uppercase">PDF</span>
-              <span className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 font-bold uppercase">PNG</span>
-              <span className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 font-bold uppercase">JPG</span>
-              <span className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-400 font-bold uppercase">WEBP</span>
-            </div>
           </div>
         ) : (
           <div className="w-full flex flex-col min-w-0">
